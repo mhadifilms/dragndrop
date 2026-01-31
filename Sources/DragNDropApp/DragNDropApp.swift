@@ -313,7 +313,7 @@ class AppState: ObservableObject {
 
     // MARK: - Authentication
 
-    func setCredentials(accessKey: String, secretKey: String, region: String) async throws {
+    func setCredentials(accessKey: String, secretKey: String, sessionToken: String? = nil, region: String) async throws {
         guard let services = services else {
             throw AppError.notInitialized
         }
@@ -323,7 +323,8 @@ class AppState: ObservableObject {
         // Test credentials by making an S3 ListBuckets call
         let creds = AWSCredentials(
             accessKeyId: accessKey,
-            secretAccessKey: secretKey
+            secretAccessKey: secretKey,
+            sessionToken: sessionToken
         )
 
         try await services.authService.setDirectCredentials(creds, region: region)
