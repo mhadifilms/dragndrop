@@ -4,6 +4,7 @@
 *.xcworkspace/
 DerivedData/
 build/
+dist/
 
 # IDE
 .vscode/
