@@ -1,0 +1,166 @@
+{
+  "id": "E7B3C8D2-4F5A-4E6B-9C0D-1A2B3C4D5E6F",
+  "name": "VFX Shot Delivery",
+  "description": "Upload VFX shots to the correct S3 folder structure based on show/episode/shot naming",
+  "version": "1.0",
+  "createdAt": "2026-01-31T00:00:00Z",
+  "updatedAt": "2026-01-31T00:00:00Z",
+  "storageProvider": "Amazon S3",
+  "bucket": "sync-services",
+  "region": "us-east-1",
+  "pathTemplate": {
+    "template": "CLIENTS/Sync_Reed/03_Berlin/{SHOW}_S02/{EPISODE}20_WORKING/{show}_{episode}_{shot}_{category}/03_VFX/",
+    "placeholders": [
+      {
+        "id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
+        "name": "SHOW",
+        "displayName": "Show Name",
+        "description": "The name of the show (uppercase in path)",
+        "required": true,
+        "transformations": []
+      },
+      {
+        "id": "B2C3D4E5-F6A7-8901-BCDE-F12345678901",
+        "name": "EPISODE",
+        "displayName": "Episode",
+        "description": "Episode number",
+        "required": true,
+        "transformations": []
+      },
+      {
+        "id": "C3D4E5F6-A7B8-9012-CDEF-123456789012",
+        "name": "show",
+        "displayName": "Show (lowercase)",
+        "description": "Show name in lowercase for folder naming",
+        "required": true,
+        "transformations": ["lowercase"]
+      },
+      {
+        "id": "D4E5F6A7-B8C9-0123-DEF1-234567890123",
+        "name": "episode",
+        "displayName": "Episode (for folder)",
+        "description": "Episode number for folder naming",
+        "required": true,
+        "transformations": []
+      },
+      {
+        "id": "E5F6A7B8-C9D0-1234-EF12-345678901234",
+        "name": "shot",
+        "displayName": "Shot ID",
+        "description": "Shot identifier",
+        "required": true,
+        "transformations": []
+      },
+      {
+        "id": "F6A7B8C9-D0E1-2345-F123-456789012345",
+        "name": "category",
+        "displayName": "Category",
+        "description": "Shot category (comp, roto, etc.)",
+        "required": true,
+        "transformations": []
+      }
+    ],
+    "staticPrefix": "CLIENTS/Sync_Reed/03_Berlin/",
+    "staticSuffix": "/03_VFX/"
+  },
+  "extractionRules": [
+    {
+      "id": "11111111-2222-3333-4444-555555555555",
+      "name": "VFX Shot Pattern",
+      "description": "Extracts show, episode, shot, and category from filename pattern: SHOW_EPISODE_SHOT_CATEGORY",
+      "enabled": true,
+      "priority": 100,
+      "pattern": "^([A-Za-z]+)_([0-9]+)_([A-Za-z0-9]+)_([A-Za-z]+)",
+      "captureGroupMappings": [
+        {
+          "id": "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE",
+          "groupIndex": 1,
+          "placeholderName": "SHOW",
+          "transformations": ["UPPERCASE"]
+        },
+        {
+          "id": "BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF",
+          "groupIndex": 1,
+          "placeholderName": "show",
+          "transformations": ["lowercase"]
+        },
+        {
+          "id": "CCCCCCCC-DDDD-EEEE-FFFF-111111111111",
+          "groupIndex": 2,
+          "placeholderName": "EPISODE",
+          "transformations": []
+        },
+        {
+          "id": "DDDDDDDD-EEEE-FFFF-1111-222222222222",
+          "groupIndex": 2,
+          "placeholderName": "episode",
+          "transformations": []
+        },
+        {
+          "id": "EEEEEEEE-FFFF-1111-2222-333333333333",
+          "groupIndex": 3,
+          "placeholderName": "shot",
+          "transformations": []
+        },
+        {
+          "id": "FFFFFFFF-1111-2222-3333-444444444444",
+          "groupIndex": 4,
+          "placeholderName": "category",
+          "transformations": []
+        }
+      ],
+      "applicableExtensions": []
+    }
+  ],
+  "fileTypeConfigs": [
+    {
+      "id": "FT111111-2222-3333-4444-555555555555",
+      "name": "Nuke Comp",
+      "category": "Nuke Comp",
+      "extensions": ["nk", "nknc"],
+      "enabled": true,
+      "destinationSubfolder": "nuke",
+      "isSequence": false
+    },
+    {
+      "id": "FT222222-3333-4444-5555-666666666666",
+      "name": "EXR Sequence",
+      "category": "Image Sequence",
+      "extensions": ["exr"],
+      "enabled": true,
+      "destinationSubfolder": "renders",
+      "isSequence": true
+    },
+    {
+      "id": "FT333333-4444-5555-6666-777777777777",
+      "name": "TIFF Sequence",
+      "category": "Image Sequence",
+      "extensions": ["tif", "tiff"],
+      "enabled": true,
+      "destinationSubfolder": "renders",
+      "isSequence": true
+    },
+    {
+      "id": "FT444444-5555-6666-7777-888888888888",
+      "name": "Video",
+      "category": "Video",
+      "extensions": ["mov", "mp4", "avi", "mkv", "mxf"],
+      "enabled": true,
+      "destinationSubfolder": "video",
+      "isSequence": false
+    }
+  ],
+  "uploadSettings": {
+    "maxConcurrentUploads": 4,
+    "multipartThresholdMB": 16,
+    "partSizeMB": 8,
+    "enableResumable": true,
+    "retryCount": 3,
+    "retryDelaySeconds": 5,
+    "enableCompression": false,
+    "verifyChecksum": true,
+    "storageClass": "STANDARD",
+    "enableEncryption": false,
+    "encryptionType": "none"
+  }
+}
