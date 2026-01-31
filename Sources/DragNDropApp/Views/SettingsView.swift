@@ -94,6 +94,7 @@ struct AWSSettingsView: View {
     @EnvironmentObject var appState: AppState
     @State private var accessKey: String = ""
     @State private var secretKey: String = ""
+    @State private var sessionToken: String = ""
     @State private var region: String = "us-east-1"
     @State private var isTesting = false
     @State private var testResult: TestResult?
@@ -102,6 +103,11 @@ struct AWSSettingsView: View {
     enum TestResult {
         case success(String)
         case failure(String)
+    }
+
+    /// Detect if using temporary credentials (ASIA prefix = STS/SSO)
+    private var isTemporaryCredentials: Bool {
+        accessKey.hasPrefix("ASIA")
     }
 
     var body: some View {
@@ -166,6 +172,13 @@ struct AWSSettingsView: View {
                     .textContentType(.password)
                     .font(.system(.body, design: .monospaced))
 
+                // Show session token field for temporary credentials (ASIA*)
+                if isTemporaryCredentials || !sessionToken.isEmpty {
+                    SecureField("Session Token", text: $sessionToken)
+                        .textContentType(.password)
+                        .font(.system(.body, design: .monospaced))
+                }
+
                 HStack {
                     Text("Region")
                     Spacer()
@@ -203,12 +216,17 @@ struct AWSSettingsView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(accessKey.isEmpty || secretKey.isEmpty || isTesting)
+                    .disabled(accessKey.isEmpty || secretKey.isEmpty || isTesting || (isTemporaryCredentials && sessionToken.isEmpty))
                 }
             }
 
             Section {
-                Text("Your credentials are stored securely in the macOS Keychain. Get your access keys from the AWS Console → IAM → Users → Security credentials.")
+                if isTemporaryCredentials {
+                    Label("Temporary credentials detected (ASIA*). Session token required.", systemImage: "info.circle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+                Text("Get credentials from AWS Console → IAM → Users → Security credentials, or copy temporary credentials from AWS SSO portal.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -237,6 +255,7 @@ struct AWSSettingsView: View {
     private func clearCredentials() {
         accessKey = ""
         secretKey = ""
+        sessionToken = ""
         testResult = nil
         Task { await appState.signOut() }
     }
@@ -249,6 +268,7 @@ struct AWSSettingsView: View {
             try await appState.setCredentials(
                 accessKey: accessKey,
                 secretKey: secretKey,
+                sessionToken: sessionToken.isEmpty ? nil : sessionToken,
                 region: region
             )
             testResult = .success("Connection successful!")
