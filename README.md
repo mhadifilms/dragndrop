@@ -1,6 +1,6 @@
-# ShotDropper
+# DragNDrop
 
-A native macOS menu bar app for VFX artists to easily upload shots, renders, and compositing files to S3 with intelligent folder mapping.
+A native macOS menu bar app for collaborators to easily upload shots, renders, and compositing files to S3 with intelligent folder mapping.
 
 ## Features
 
@@ -53,7 +53,7 @@ cd dragndrop
 swift build -c release
 
 # Run the app
-.build/release/ShotDropper
+.build/release/dragndrop-app
 ```
 
 ### Install CLI Tool
@@ -61,7 +61,7 @@ swift build -c release
 ```bash
 # Build and install the CLI
 swift build -c release
-cp .build/release/shotdrop /usr/local/bin/
+cp .build/release/dragndrop-cli /usr/local/bin/dragndrop
 ```
 
 ## Configuration
@@ -69,14 +69,14 @@ cp .build/release/shotdrop /usr/local/bin/
 ### AWS Setup
 
 1. **SSO Configuration** (Recommended):
-   - Open ShotDropper Settings → AWS
+   - Open DragNDrop Settings → AWS
    - Enter your SSO Start URL (e.g., `https://your-org.awsapps.com/start`)
    - Enter SSO Region, Account ID, and Role Name
    - Click "Sign In" to authenticate via browser
 
 2. **AWS Profile** (Alternative):
    - Configure AWS CLI: `aws configure sso`
-   - Set profile name in ShotDropper Settings
+   - Set profile name in DragNDrop Settings
    - Credentials are loaded automatically
 
 ### Workflow Configuration
@@ -133,7 +133,7 @@ See `Examples/vfx_workflow.json` for a complete workflow configuration.
 
 ### GUI App
 
-1. **Launch ShotDropper** - appears in menu bar
+1. **Launch DragNDrop** - appears in menu bar
 2. **Sign in to AWS** - click menu bar icon → Sign In
 3. **Select Workflow** - choose or create a workflow
 4. **Drop Files** - drag files/folders onto drop zone
@@ -143,27 +143,27 @@ See `Examples/vfx_workflow.json` for a complete workflow configuration.
 
 ```bash
 # Check status
-shotdrop status
+dragndrop status
 
 # Upload a file
-shotdrop upload /path/to/MyShow_102_0010_comp.nk
+dragndrop upload /path/to/MyShow_102_0010_comp.nk
 
 # List active uploads
-shotdrop list
+dragndrop list
 
 # Pause/resume uploads
-shotdrop pause
-shotdrop resume
+dragndrop pause
+dragndrop resume
 
 # View upload history
-shotdrop history --limit 20
+dragndrop history --limit 20
 
 # Manage workflows
-shotdrop config
-shotdrop config --set-workflow <workflow-id>
+dragndrop config
+dragndrop config --set-workflow <workflow-id>
 
 # Run headless server
-shotdrop server --port 9847
+dragndrop server --port 9847
 ```
 
 ### Automation
@@ -191,17 +191,17 @@ echo '{"command":"upload","args":{"path":"/path/to/file.nk"}}' | nc localhost 98
 ## Architecture
 
 ```
-ShotDropper/
+DragNDrop/
 ├── Sources/
-│   ├── ShotDropperCore/       # Core business logic
-│   │   ├── Models/            # Data models
-│   │   └── Services/          # AWS, Upload, Extraction services
-│   ├── ShotDropperApp/        # SwiftUI macOS app
-│   │   └── Views/             # UI components
-│   └── ShotDropperCLI/        # Command-line interface
+│   ├── DragNDropCore/       # Core business logic
+│   │   ├── Models/          # Data models
+│   │   └── Services/        # AWS, Upload, Extraction services
+│   ├── DragNDropApp/        # SwiftUI macOS app
+│   │   └── Views/           # UI components
+│   └── DragNDropCLI/        # Command-line interface
 ├── Tests/
-│   └── ShotDropperTests/      # Unit tests
-└── Examples/                  # Sample configurations
+│   └── DragNDropTests/      # Unit tests
+└── Examples/                # Sample configurations
 ```
 
 ### Key Components
@@ -264,19 +264,4 @@ ExtractionRule(
 
 Enable debug logging in Settings → Advanced → Enable debug logging
 
-Logs are stored in: `~/Library/Application Support/ShotDropper/logs/`
-
-## License
-
-MIT License - see LICENSE file for details.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
-## Support
-
-- [GitHub Issues](https://github.com/your-org/dragndrop/issues)
-- [Documentation](https://github.com/your-org/dragndrop/wiki)
+Logs are stored in: `~/Library/Application Support/DragNDrop/logs/`

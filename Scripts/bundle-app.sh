@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# Build and bundle ShotDropper as a proper macOS app
+# Build and bundle DragNDrop as a proper macOS app
 
 set -e
 
 # Configuration
-APP_NAME="ShotDropper"
-BUNDLE_ID="com.shotdropper.app"
+APP_NAME="DragNDrop"
+BUNDLE_ID="com.dragndrop.app"
 VERSION="1.0.0"
 BUILD_DIR=".build/release"
 OUTPUT_DIR="$BUILD_DIR"
 APP_BUNDLE="$OUTPUT_DIR/$APP_NAME.app"
 
-echo "Building ShotDropper..."
+echo "Building DragNDrop..."
 swift build --configuration release
 
 echo "Creating app bundle..."
@@ -25,7 +25,7 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 # Copy executable
-cp "$BUILD_DIR/ShotDropper" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+cp "$BUILD_DIR/dragndrop-app" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
 # Create Info.plist
 cat > "$APP_BUNDLE/Contents/Info.plist" << EOF

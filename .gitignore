@@ -1,9 +1,54 @@
+# Build artifacts
 .build/
+*.xcodeproj/
+*.xcworkspace/
+DerivedData/
+build/
+
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# App bundles (built locally)
+*.app/
+
+# Environment and secrets
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
+*.local
+credentials.json
+*.pem
+*.key
+*.p12
+*.mobileprovision
+
+# AWS
+.aws/
+aws-credentials*
+
+# Logs
+*.log
+logs/
+
+# Package manager
+.swiftpm/
+Packages/
+Package.resolved
+
+# Test artifacts
+*.xcresult
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
