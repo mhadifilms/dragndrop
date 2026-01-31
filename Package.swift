@@ -6,12 +6,12 @@ import PackageDescription
 let package = Package(
     name: "dragndrop",
     platforms: [
-        .macOS(.v15)  // macOS 26 Tahoe
+        .macOS(.v15)  // macOS 15 Sequoia
     ],
     products: [
-        .executable(name: "dragndrop-app", targets: ["ShotDropperApp"]),
-        .executable(name: "dragndrop", targets: ["ShotDropperCLI"]),
-        .library(name: "ShotDropperCore", targets: ["ShotDropperCore"])
+        .executable(name: "dragndrop-app", targets: ["DragNDropApp"]),
+        .executable(name: "dragndrop-cli", targets: ["DragNDropCLI"]),
+        .library(name: "DragNDropCore", targets: ["DragNDropCore"])
     ],
     dependencies: [
         .package(url: "https://github.com/awslabs/aws-sdk-swift.git", from: "1.0.0"),
@@ -21,7 +21,7 @@ let package = Package(
     targets: [
         // Core library with all business logic
         .target(
-            name: "ShotDropperCore",
+            name: "DragNDropCore",
             dependencies: [
                 .product(name: "AWSS3", package: "aws-sdk-swift"),
                 .product(name: "AWSSTS", package: "aws-sdk-swift"),
@@ -30,14 +30,14 @@ let package = Package(
                 .product(name: "AWSClientRuntime", package: "aws-sdk-swift"),
                 .product(name: "Logging", package: "swift-log")
             ],
-            path: "Sources/ShotDropperCore"
+            path: "Sources/DragNDropCore"
         ),
 
         // Main macOS app
         .executableTarget(
-            name: "ShotDropperApp",
-            dependencies: ["ShotDropperCore"],
-            path: "Sources/ShotDropperApp",
+            name: "DragNDropApp",
+            dependencies: ["DragNDropCore"],
+            path: "Sources/DragNDropApp",
             resources: [
                 .process("Resources")
             ]
@@ -45,19 +45,19 @@ let package = Package(
 
         // CLI tool for testing and automation
         .executableTarget(
-            name: "ShotDropperCLI",
+            name: "DragNDropCLI",
             dependencies: [
-                "ShotDropperCore",
+                "DragNDropCore",
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ],
-            path: "Sources/ShotDropperCLI"
+            path: "Sources/DragNDropCLI"
         ),
 
         // Tests
         .testTarget(
-            name: "ShotDropperTests",
-            dependencies: ["ShotDropperCore"],
-            path: "Tests/ShotDropperTests"
+            name: "DragNDropTests",
+            dependencies: ["DragNDropCore"],
+            path: "Tests/DragNDropTests"
         )
     ]
 )
