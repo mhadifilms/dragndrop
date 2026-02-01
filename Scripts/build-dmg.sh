@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-APP_NAME="DragNDrop"
+APP_NAME="dragndrop"
 BUNDLE_ID="com.dragndrop.app"
 VERSION="${VERSION:-1.0.0}"
 BUILD_DIR=".build/release"
