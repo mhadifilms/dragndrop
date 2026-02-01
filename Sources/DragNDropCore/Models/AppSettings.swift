@@ -4,13 +4,19 @@ import Foundation
 
 /// Global application settings persisted in UserDefaults
 public struct AppSettings: Codable, Equatable, Sendable {
-    // Authentication
+    // AWS Configuration
     public var awsRegion: String
     public var awsProfileName: String
+    public var s3Bucket: String
 
-    // Active workflow
-    public var activeWorkflowId: UUID?
-    public var recentWorkflowIds: [UUID]
+    // Upload Path Configuration
+    public var useCustomUploadPath: Bool
+    public var uploadPathPattern: String  // e.g., "{show}/{episode}/{shot}/"
+    public var filenamePattern: String    // Regex to extract values from filename
+
+    // Pre-processing
+    public var enablePreProcessing: Bool
+    public var preProcessingScript: String  // Shell script to run before upload
 
     // UI Settings
     public var launchAtLogin: Bool
@@ -56,8 +62,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public init(
         awsRegion: String = "us-east-1",
         awsProfileName: String = "default",
-        activeWorkflowId: UUID? = nil,
-        recentWorkflowIds: [UUID] = [],
+        s3Bucket: String = "",
+        useCustomUploadPath: Bool = false,
+        uploadPathPattern: String = "{show}/{episode}/{shot}/",
+        filenamePattern: String = "^([A-Za-z]+)_([0-9]+)_([A-Za-z0-9]+)",
+        enablePreProcessing: Bool = false,
+        preProcessingScript: String = "#!/bin/bash\n# Pre-processing script\n# Available variables:\n#   $INPUT_FILE - path to the file being uploaded\n#   $FILENAME - just the filename\n#   $DESTINATION - S3 destination path\n\necho \"Processing: $FILENAME\"\n",
         launchAtLogin: Bool = false,
         showNotifications: Bool = true,
         notificationSound: Bool = true,
@@ -86,8 +96,12 @@ public struct AppSettings: Codable, Equatable, Sendable {
     ) {
         self.awsRegion = awsRegion
         self.awsProfileName = awsProfileName
-        self.activeWorkflowId = activeWorkflowId
-        self.recentWorkflowIds = recentWorkflowIds
+        self.s3Bucket = s3Bucket
+        self.useCustomUploadPath = useCustomUploadPath
+        self.uploadPathPattern = uploadPathPattern
+        self.filenamePattern = filenamePattern
+        self.enablePreProcessing = enablePreProcessing
+        self.preProcessingScript = preProcessingScript
         self.launchAtLogin = launchAtLogin
         self.showNotifications = showNotifications
         self.notificationSound = notificationSound

@@ -278,11 +278,6 @@ class AppState: ObservableObject {
                 try await container.startCLIServer(port: UInt16(settings.cliServerPort))
             }
 
-            // Load active workflow
-            if let workflowId = settings.activeWorkflowId {
-                activeWorkflow = await container.workflowManager.get(id: workflowId)
-            }
-
             // Try to load credentials from profile
             do {
                 _ = try await container.authService.loadFromProfile(profileName: settings.awsProfileName)
@@ -404,7 +399,6 @@ class AppState: ObservableObject {
         do {
             try await services?.workflowManager.setActive(id: workflow.id)
             activeWorkflow = workflow
-            settings.activeWorkflowId = workflow.id
             settings.save()
         } catch {
             print("Error setting workflow: \(error)")

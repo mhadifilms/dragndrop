@@ -20,16 +20,16 @@ struct SettingsView: View {
                     Label("AWS", systemImage: "cloud")
                 }
 
+            UploadPathSettingsView()
+                .environmentObject(appState)
+                .tabItem {
+                    Label("Paths", systemImage: "folder")
+                }
+
             UploadSettingsView()
                 .environmentObject(appState)
                 .tabItem {
                     Label("Uploads", systemImage: "arrow.up.circle")
-                }
-
-            ScheduleSettingsView()
-                .environmentObject(appState)
-                .tabItem {
-                    Label("Schedule", systemImage: "clock")
                 }
 
             FileFilterSettingsView()
@@ -44,7 +44,7 @@ struct SettingsView: View {
                     Label("Advanced", systemImage: "wrench.and.screwdriver")
                 }
         }
-        .frame(width: 550, height: 450)
+        .frame(width: 550, height: 500)
     }
 }
 
@@ -161,6 +161,15 @@ struct AWSSettingsView: View {
                         }
                     }
                 }
+            }
+
+            Section("S3 Bucket") {
+                TextField("Bucket name", text: $appState.settings.s3Bucket)
+                    .font(.system(.body, design: .monospaced))
+
+                Text("The S3 bucket where files will be uploaded")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("AWS Credentials") {
@@ -402,6 +411,92 @@ struct UploadSettingsView: View {
         .onDisappear {
             appState.settings.save()
         }
+    }
+}
+
+// MARK: - Upload Path Settings
+
+struct UploadPathSettingsView: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Use custom upload path", isOn: $appState.settings.useCustomUploadPath)
+
+                Text("When disabled, files upload to bucket root with original filename")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if appState.settings.useCustomUploadPath {
+                Section("Path Pattern") {
+                    TextField("Upload path", text: $appState.settings.uploadPathPattern)
+                        .font(.system(.body, design: .monospaced))
+
+                    Text("Use placeholders like {show}, {episode}, {shot} that will be extracted from filenames")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    // Example preview
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Example:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("Berlin_102_0010_comp.nk")
+                                .font(.system(.caption, design: .monospaced))
+                            Text("→ \(previewPath)")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.blue)
+                        }
+                    }
+                }
+
+                Section("Filename Pattern (Regex)") {
+                    TextField("Pattern", text: $appState.settings.filenamePattern)
+                        .font(.system(.body, design: .monospaced))
+
+                    Text("Capture groups map to placeholders: group 1 = {show}, group 2 = {episode}, group 3 = {shot}")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Pre-processing Script") {
+                Toggle("Run script before upload", isOn: $appState.settings.enablePreProcessing)
+
+                if appState.settings.enablePreProcessing {
+                    TextEditor(text: $appState.settings.preProcessingScript)
+                        .font(.system(.body, design: .monospaced))
+                        .frame(minHeight: 150)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .background(Color(nsColor: .textBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                        )
+
+                    Text("Script runs for each file. Use $INPUT_FILE, $FILENAME, $DESTINATION variables.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .onDisappear {
+            appState.settings.save()
+        }
+    }
+
+    private var previewPath: String {
+        var path = appState.settings.uploadPathPattern
+        path = path.replacingOccurrences(of: "{show}", with: "Berlin")
+        path = path.replacingOccurrences(of: "{episode}", with: "102")
+        path = path.replacingOccurrences(of: "{shot}", with: "0010")
+        return path + "Berlin_102_0010_comp.nk"
     }
 }
 
