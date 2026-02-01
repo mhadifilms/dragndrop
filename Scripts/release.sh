@@ -6,7 +6,7 @@
 
 set -e
 
-APP_NAME="DragNDrop"
+APP_NAME="dragndrop"
 
 # Check for version argument
 if [ -z "$1" ]; then

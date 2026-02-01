@@ -1,4 +1,4 @@
-# DragNDrop
+# dragndrop
 
 A native macOS menu bar app for collaborators to easily upload shots, renders, and compositing files to S3 with intelligent folder mapping.
 
@@ -69,14 +69,14 @@ cp .build/release/dragndrop-cli /usr/local/bin/dragndrop
 ### AWS Setup
 
 1. **SSO Configuration** (Recommended):
-   - Open DragNDrop Settings → AWS
+   - Open dragndrop Settings → AWS
    - Enter your SSO Start URL (e.g., `https://your-org.awsapps.com/start`)
    - Enter SSO Region, Account ID, and Role Name
    - Click "Sign In" to authenticate via browser
 
 2. **AWS Profile** (Alternative):
    - Configure AWS CLI: `aws configure sso`
-   - Set profile name in DragNDrop Settings
+   - Set profile name in dragndrop Settings
    - Credentials are loaded automatically
 
 ### Workflow Configuration
@@ -133,7 +133,7 @@ See `Examples/vfx_workflow.json` for a complete workflow configuration.
 
 ### GUI App
 
-1. **Launch DragNDrop** - appears in menu bar
+1. **Launch dragndrop** - appears in menu bar
 2. **Sign in to AWS** - click menu bar icon → Sign In
 3. **Select Workflow** - choose or create a workflow
 4. **Drop Files** - drag files/folders onto drop zone
@@ -191,16 +191,16 @@ echo '{"command":"upload","args":{"path":"/path/to/file.nk"}}' | nc localhost 98
 ## Architecture
 
 ```
-DragNDrop/
+dragndrop/
 ├── Sources/
-│   ├── DragNDropCore/       # Core business logic
+│   ├── dragndropCore/       # Core business logic
 │   │   ├── Models/          # Data models
 │   │   └── Services/        # AWS, Upload, Extraction services
-│   ├── DragNDropApp/        # SwiftUI macOS app
+│   ├── dragndropApp/        # SwiftUI macOS app
 │   │   └── Views/           # UI components
-│   └── DragNDropCLI/        # Command-line interface
+│   └── dragndropCLI/        # Command-line interface
 ├── Tests/
-│   └── DragNDropTests/      # Unit tests
+│   └── dragndropTests/      # Unit tests
 └── Examples/                # Sample configurations
 ```
 
@@ -264,4 +264,4 @@ ExtractionRule(
 
 Enable debug logging in Settings → Advanced → Enable debug logging
 
-Logs are stored in: `~/Library/Application Support/DragNDrop/logs/`
+Logs are stored in: `~/Library/Application Support/dragndrop/logs/`
