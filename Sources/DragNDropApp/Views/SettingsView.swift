@@ -38,6 +38,12 @@ struct SettingsView: View {
                     Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
                 }
 
+            SkillsSettingsView()
+                .environmentObject(appState)
+                .tabItem {
+                    Label("Skills", systemImage: "wand.and.stars")
+                }
+
             AdvancedSettingsView()
                 .environmentObject(appState)
                 .tabItem {
@@ -273,16 +279,35 @@ struct AWSSettingsView: View {
         isTesting = true
         testResult = nil
 
+        // Trim whitespace from all credentials (common copy/paste issue)
+        let trimmedAccessKey = accessKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSecretKey = secretKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSessionToken = sessionToken.trimmingCharacters(in: .whitespacesAndNewlines)
+
         do {
             try await appState.setCredentials(
-                accessKey: accessKey,
-                secretKey: secretKey,
-                sessionToken: sessionToken.isEmpty ? nil : sessionToken,
+                accessKey: trimmedAccessKey,
+                secretKey: trimmedSecretKey,
+                sessionToken: trimmedSessionToken.isEmpty ? nil : trimmedSessionToken,
                 region: region
             )
             testResult = .success("Connection successful!")
         } catch {
-            testResult = .failure(error.localizedDescription)
+            let errorMessage = error.localizedDescription
+            // Provide more helpful error messages for common issues
+            if errorMessage.contains("InvalidAccessKeyId") {
+                if trimmedAccessKey.hasPrefix("ASIA") {
+                    testResult = .failure("Invalid or expired temporary credentials. STS tokens typically expire after 1-12 hours. Please get fresh credentials.")
+                } else {
+                    testResult = .failure("Invalid Access Key ID. Please check your credentials.")
+                }
+            } else if errorMessage.contains("SignatureDoesNotMatch") {
+                testResult = .failure("Invalid Secret Access Key. Please check your credentials.")
+            } else if errorMessage.contains("ExpiredToken") {
+                testResult = .failure("Session token has expired. Please get fresh credentials.")
+            } else {
+                testResult = .failure(errorMessage)
+            }
         }
 
         isTesting = false

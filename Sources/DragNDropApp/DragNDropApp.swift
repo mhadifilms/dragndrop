@@ -74,6 +74,12 @@ struct dragndropCommands: Commands {
             }
             .keyboardShortcut("r", modifiers: [.command, .shift])
             .disabled(!appState.hasActiveUploads)
+
+            Button("Retry All Failed") {
+                Task { await appState.retryAllFailed() }
+            }
+            .keyboardShortcut("r", modifiers: [.command, .option])
+            .disabled(!appState.hasFailedUploads)
         }
 
         // Edit menu additions
@@ -87,6 +93,14 @@ struct dragndropCommands: Commands {
             }
             .keyboardShortcut("c", modifiers: [.command, .shift])
             .disabled(appState.activeJobs.isEmpty)
+
+            Divider()
+
+            Button("Clear Queue") {
+                Task { await appState.clearQueue() }
+            }
+            .keyboardShortcut(.delete, modifiers: [.command])
+            .disabled(appState.pendingJobs.isEmpty)
         }
 
         // View commands
@@ -233,7 +247,6 @@ class AppState: ObservableObject {
     @Published var isAuthenticated = false
     @Published var authState: AuthenticationState = .notAuthenticated
     @Published var uploadStatus: UploadManagerStatus?
-    @Published var activeWorkflow: WorkflowConfiguration?
     @Published var pendingJobs: [UploadJob] = []
     @Published var activeJobs: [UploadJob] = []
     @Published var droppedItems: [ProcessedItem] = []
@@ -244,8 +257,8 @@ class AppState: ObservableObject {
     // Settings
     @Published var settings: AppSettings = AppSettings.load()
 
-    // Services
-    private var services: ServiceContainer?
+    // Services (internal for Skills UI access)
+    internal private(set) var services: ServiceContainer?
 
     // Computed
     var menuBarIconName: String {
@@ -262,6 +275,39 @@ class AppState: ObservableObject {
 
     var statusText: String {
         uploadStatus?.statusText ?? "Ready"
+    }
+
+    var hasFailedUploads: Bool {
+        uploadStatus?.failedCount ?? 0 > 0
+    }
+
+    /// Creates a workflow from current settings (simplified workflow model)
+    var currentWorkflow: WorkflowConfiguration {
+        WorkflowConfiguration(
+            name: "Default",
+            bucket: settings.s3Bucket,
+            region: settings.awsRegion,
+            pathTemplate: PathTemplate(
+                template: settings.useCustomUploadPath ? settings.uploadPathPattern : "",
+                placeholders: []
+            ),
+            extractionRules: settings.useCustomUploadPath ? [
+                ExtractionRule(
+                    name: "Filename Pattern",
+                    pattern: settings.filenamePattern,
+                    captureGroupMappings: [
+                        CaptureGroupMapping(groupIndex: 1, placeholderName: "show"),
+                        CaptureGroupMapping(groupIndex: 2, placeholderName: "episode"),
+                        CaptureGroupMapping(groupIndex: 3, placeholderName: "shot")
+                    ]
+                )
+            ] : []
+        )
+    }
+
+    /// Check if ready to upload (bucket configured)
+    var isReadyToUpload: Bool {
+        !settings.s3Bucket.isEmpty && isAuthenticated
     }
 
     // MARK: - Initialization
@@ -294,6 +340,20 @@ class AppState: ObservableObject {
                     self?.activeJobs = status.activeJobs
                 }
             }
+
+            // Configure pre-processing with bundled tools
+            let toolsPath = Bundle.main.resourceURL?.appendingPathComponent("bin").path
+            await container.configurePreProcessing(
+                enabled: settings.enablePreProcessing,
+                script: settings.preProcessingScript,
+                toolsPath: toolsPath
+            )
+
+            // Configure skills
+            await container.configureSkills(
+                enabled: settings.enableSkills,
+                toolsPath: toolsPath
+            )
 
             isInitialized = true
         } catch {
@@ -344,12 +404,14 @@ class AppState: ObservableObject {
     // MARK: - File Handling
 
     func processDroppedFiles(_ urls: [URL]) async {
-        guard let services = services, let workflow = activeWorkflow else {
+        guard let services = services else { return }
+        guard isReadyToUpload else {
+            print("Not ready to upload - check bucket configuration and authentication")
             return
         }
 
         do {
-            let processed = try await services.uploadManager.addFiles(urls: urls, workflow: workflow)
+            let processed = try await services.uploadManager.addFiles(urls: urls, workflow: currentWorkflow, settings: settings)
             droppedItems = processed
             pendingJobs = await services.uploadManager.getPendingJobs()
 
@@ -389,28 +451,13 @@ class AppState: ObservableObject {
         await services?.uploadManager.retryJob(id: id)
     }
 
-    // MARK: - Workflow Management
-
-    func loadWorkflows() async -> [WorkflowConfiguration] {
-        return await services?.workflowManager.getAll() ?? []
+    func retryAllFailed() async {
+        await services?.uploadManager.retryAllFailed()
     }
 
-    func setActiveWorkflow(_ workflow: WorkflowConfiguration) async {
-        do {
-            try await services?.workflowManager.setActive(id: workflow.id)
-            activeWorkflow = workflow
-            settings.save()
-        } catch {
-            print("Error setting workflow: \(error)")
-        }
-    }
-
-    func saveWorkflow(_ workflow: WorkflowConfiguration) async throws {
-        try await services?.workflowManager.save(workflow)
-    }
-
-    func importWorkflow(from url: URL) async throws -> WorkflowConfiguration? {
-        return try await services?.workflowManager.importWorkflow(from: url)
+    func clearQueue() async {
+        await services?.uploadManager.clearQueue()
+        pendingJobs = []
     }
 
     // MARK: - Utilities

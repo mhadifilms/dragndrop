@@ -18,6 +18,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var enablePreProcessing: Bool
     public var preProcessingScript: String  // Shell script to run before upload
 
+    // Skills
+    public var enableSkills: Bool  // Enable skill-based companion file generation
+
+    // Smart Path Resolution (uses uploadPathPattern as template)
+    public var enableSmartPathResolution: Bool
+    public var typeFolderMappings: [String: String]  // e.g., "vfx" → "03_VFX"
+
     // UI Settings
     public var launchAtLogin: Bool
     public var showNotifications: Bool
@@ -67,7 +74,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         uploadPathPattern: String = "{show}/{episode}/{shot}/",
         filenamePattern: String = "^([A-Za-z]+)_([0-9]+)_([A-Za-z0-9]+)",
         enablePreProcessing: Bool = false,
-        preProcessingScript: String = "#!/bin/bash\n# Pre-processing script\n# Available variables:\n#   $INPUT_FILE - path to the file being uploaded\n#   $FILENAME - just the filename\n#   $DESTINATION - S3 destination path\n\necho \"Processing: $FILENAME\"\n",
+        preProcessingScript: String = "#!/bin/bash\n# Pre-processing script\n# Available variables:\n#   $INPUT_FILE - path to the file being uploaded\n#   $FILENAME - just the filename\n#   $DESTINATION - S3 destination path\n#   $FFMPEG - path to bundled ffmpeg\n#   $FFPROBE - path to bundled ffprobe\n\necho \"Processing: $FILENAME\"\n",
+        enableSkills: Bool = false,
+        enableSmartPathResolution: Bool = false,
+        typeFolderMappings: [String: String] = ["vfx": "03_VFX", "ls": "02_Lipsync", "plate": "01_Plates", "comp": "03_VFX"],
         launchAtLogin: Bool = false,
         showNotifications: Bool = true,
         notificationSound: Bool = true,
@@ -102,6 +112,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.filenamePattern = filenamePattern
         self.enablePreProcessing = enablePreProcessing
         self.preProcessingScript = preProcessingScript
+        self.enableSkills = enableSkills
+        self.enableSmartPathResolution = enableSmartPathResolution
+        self.typeFolderMappings = typeFolderMappings
         self.launchAtLogin = launchAtLogin
         self.showNotifications = showNotifications
         self.notificationSound = notificationSound

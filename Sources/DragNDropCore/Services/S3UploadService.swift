@@ -663,6 +663,29 @@ public final class S3UploadService: @unchecked Sendable {
         } ?? []
     }
 
+    /// Lists folders (common prefixes) in a bucket at a given path
+    public func listFolders(
+        bucket: String,
+        prefix: String
+    ) async throws -> [String] {
+        guard let client = s3Client else {
+            throw S3UploadError.notConfigured
+        }
+
+        let normalizedPrefix = prefix.hasSuffix("/") ? prefix : prefix + "/"
+
+        let input = ListObjectsV2Input(
+            bucket: bucket,
+            delimiter: "/",
+            prefix: normalizedPrefix
+        )
+
+        let output = try await client.listObjectsV2(input: input)
+
+        // Return common prefixes (folders)
+        return output.commonPrefixes?.compactMap { $0.prefix } ?? []
+    }
+
     /// Checks if an object exists
     public func objectExists(bucket: String, key: String) async throws -> Bool {
         guard let client = s3Client else {

@@ -413,8 +413,10 @@ struct ImageSequencePreview: View {
 
     private func startPlayback() {
         isPlaying = true
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0/24.0, repeats: true) { _ in
-            currentFrame = (currentFrame + 1) % frames.count
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0/24.0, repeats: true) { [self] _ in
+            Task { @MainActor in
+                currentFrame = (currentFrame + 1) % frames.count
+            }
         }
     }
 
@@ -499,7 +501,7 @@ struct FileDropPreview: View {
     private func computeTotalSize() -> Int64 {
         files.reduce(0) { total, url in
             let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
-            return total + (size ?? 0)
+            return total + size
         }
     }
 }

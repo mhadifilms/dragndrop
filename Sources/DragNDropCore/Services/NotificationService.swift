@@ -145,6 +145,29 @@ public actor NotificationService {
         await send(content: content, identifier: "session-expiring")
     }
 
+    /// Notifies about skill execution results
+    public func notifySkillResults(filename: String, successCount: Int, failedSkills: [String]) async {
+        guard isEnabled else { return }
+        guard !failedSkills.isEmpty else { return }  // Only notify on failures
+
+        let content = UNMutableNotificationContent()
+        content.title = "Skills Warning"
+
+        if failedSkills.count == 1 {
+            content.body = "\(failedSkills[0]) failed for \(filename)"
+        } else {
+            content.body = "\(failedSkills.count) skills failed for \(filename)"
+        }
+
+        content.categoryIdentifier = "SKILL_WARNING"
+
+        if playSound {
+            content.sound = .default
+        }
+
+        await send(content: content, identifier: "skill-warning-\(Date().timeIntervalSince1970)")
+    }
+
     // MARK: - Helpers
 
     private func send(content: UNMutableNotificationContent, identifier: String) async {

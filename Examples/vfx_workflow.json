@@ -9,7 +9,7 @@
   "bucket": "sync-services",
   "region": "us-east-1",
   "pathTemplate": {
-    "template": "CLIENTS/example_client/03_MyShow/{SHOW}_S02/{EPISODE}20_WORKING/{show}_{episode}_{shot}_{category}/03_VFX/",
+    "template": "projects/{SHOW}/season02/{EPISODE}/shots/{shot}_{category}/vfx/",
     "placeholders": [
       {
         "id": "A1B2C3D4-E5F6-7890-ABCD-EF1234567890",
@@ -60,8 +60,8 @@
         "transformations": []
       }
     ],
-    "staticPrefix": "CLIENTS/example_client/03_MyShow/",
-    "staticSuffix": "/03_VFX/"
+    "staticPrefix": "projects/",
+    "staticSuffix": "/vfx/"
   },
   "extractionRules": [
     {

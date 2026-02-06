@@ -10,7 +10,7 @@ APP_NAME="dragndrop"
 BUNDLE_ID="com.dragndrop.app"
 VERSION="${VERSION:-1.0.0}"
 BUILD_DIR=".build/release"
-DIST_DIR="dist"
+DIST_DIR=".build/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 DMG_NAME="$APP_NAME-$VERSION"
 DMG_PATH="$DIST_DIR/$DMG_NAME.dmg"
@@ -121,6 +121,31 @@ echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 if [ -f "Resources/AppIcon.icns" ]; then
     cp "Resources/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/"
 fi
+
+# Bundle ffmpeg and ffprobe
+FFMPEG_CACHE="$HOME/.cache/dragndrop-build/ffmpeg"
+mkdir -p "$FFMPEG_CACHE"
+
+download_ffmpeg() {
+    local tool=$1
+    local dest="$FFMPEG_CACHE/$tool"
+
+    if [ ! -x "$dest" ]; then
+        echo "Downloading $tool..."
+        curl -sL "https://evermeet.cx/ffmpeg/getrelease/$tool/zip" -o "/tmp/$tool.zip"
+        unzip -o -q "/tmp/$tool.zip" -d "$FFMPEG_CACHE"
+        rm "/tmp/$tool.zip"
+        chmod +x "$dest"
+    fi
+}
+
+echo "Bundling ffmpeg..."
+download_ffmpeg "ffmpeg"
+download_ffmpeg "ffprobe"
+
+mkdir -p "$APP_BUNDLE/Contents/Resources/bin"
+cp "$FFMPEG_CACHE/ffmpeg" "$APP_BUNDLE/Contents/Resources/bin/"
+cp "$FFMPEG_CACHE/ffprobe" "$APP_BUNDLE/Contents/Resources/bin/"
 
 echo "App bundle created at: $APP_BUNDLE"
 

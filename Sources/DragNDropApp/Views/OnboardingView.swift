@@ -46,7 +46,7 @@ struct OnboardingView: View {
                         .opacity(currentStep == 2 ? 1 : 0)
                         .offset(x: currentStep == 2 ? 0 : (currentStep > 2 ? -50 : 50))
 
-                    WorkflowStep()
+                    BucketConfigStep()
                         .environmentObject(appState)
                         .opacity(currentStep == 3 ? 1 : 0)
                         .offset(x: currentStep == 3 ? 0 : 50)
@@ -77,7 +77,7 @@ struct OnboardingView: View {
         switch currentStep {
         case 0, 1: return true
         case 2: return appState.isAuthenticated
-        case 3: return appState.activeWorkflow != nil
+        case 3: return !appState.settings.s3Bucket.isEmpty
         default: return true
         }
     }
@@ -522,18 +522,16 @@ struct AuthenticationStep: View {
 
 // MARK: - Workflow Step
 
-struct WorkflowStep: View {
+struct BucketConfigStep: View {
     @EnvironmentObject var appState: AppState
-    @State private var workflows: [WorkflowConfiguration] = []
-    @State private var selectedWorkflowId: UUID?
-    @State private var showingNewWorkflow = false
-    @State private var isLoading = true
+    @State private var bucketName: String = ""
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 24) {
             // Icon
             ZStack {
-                if appState.activeWorkflow != nil {
+                if !appState.settings.s3Bucket.isEmpty {
                     AnimatedCheckmark(color: .green)
                         .frame(width: 80, height: 80)
                 } else {
@@ -541,7 +539,7 @@ struct WorkflowStep: View {
                         .fill(Color.purple.opacity(0.15))
                         .frame(width: 80, height: 80)
 
-                    Image(systemName: "folder.badge.gearshape")
+                    Image(systemName: "externaldrive.badge.icloud")
                         .font(.system(size: 36))
                         .foregroundStyle(.purple)
                 }
@@ -549,185 +547,69 @@ struct WorkflowStep: View {
             .animatedAppearance(delay: 0.1)
 
             VStack(spacing: 12) {
-                Text(appState.activeWorkflow != nil ? "Workflow Selected!" : "Choose a Workflow")
+                Text(!appState.settings.s3Bucket.isEmpty ? "Bucket Configured!" : "Configure S3 Bucket")
                     .font(.title)
                     .fontWeight(.bold)
 
-                Text(appState.activeWorkflow != nil
+                Text(!appState.settings.s3Bucket.isEmpty
                     ? "You're ready to start uploading files."
-                    : "Workflows define where and how your files are organized in S3.")
+                    : "Enter the name of your S3 bucket where files will be uploaded.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
             .animatedAppearance(delay: 0.2)
 
-            if appState.activeWorkflow == nil {
+            if appState.settings.s3Bucket.isEmpty {
                 VStack(spacing: 16) {
-                    if isLoading {
-                        ProgressView()
-                    } else if workflows.isEmpty {
-                        // No workflows - create first one
-                        VStack(spacing: 12) {
-                            Text("No workflows yet")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                            Button {
-                                createSampleWorkflow()
-                            } label: {
-                                HStack {
-                                    Image(systemName: "plus.circle.fill")
-                                    Text("Create Sample VFX Workflow")
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    } else {
-                        // Workflow picker
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(workflows) { workflow in
-                                    WorkflowCard(
-                                        workflow: workflow,
-                                        isSelected: selectedWorkflowId == workflow.id
-                                    )
-                                    .onTapGesture {
-                                        withAnimation(AnimationPresets.spring) {
-                                            selectedWorkflowId = workflow.id
-                                        }
-                                    }
-                                }
-
-                                // Add new workflow button
-                                Button {
-                                    showingNewWorkflow = true
-                                } label: {
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "plus.circle.fill")
-                                            .font(.title)
-                                            .foregroundStyle(.secondary)
-                                        Text("New")
-                                            .font(.caption)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .frame(width: 100, height: 80)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.secondary.opacity(0.1))
-                                            .strokeBorder(Color.secondary.opacity(0.2), style: StrokeStyle(lineWidth: 1, dash: [5]))
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 32)
+                    TextField("my-bucket-name", text: $bucketName)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 300)
+                        .focused($isFocused)
+                        .onSubmit {
+                            saveBucket()
                         }
 
-                        if let selectedId = selectedWorkflowId,
-                           let selected = workflows.first(where: { $0.id == selectedId }) {
-                            Button("Use \"\(selected.name)\"") {
-                                Task {
-                                    await appState.setActiveWorkflow(selected)
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
+                    Button("Save Bucket") {
+                        saveBucket()
                     }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(bucketName.isEmpty)
                 }
                 .animatedAppearance(delay: 0.3)
             } else {
-                // Workflow selected
-                if let workflow = appState.activeWorkflow {
-                    VStack(spacing: 8) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            Text(workflow.name)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                        }
-
-                        Text("s3://\(workflow.bucket)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        Button("Change workflow") {
-                            appState.activeWorkflow = nil
-                        }
-                        .buttonStyle(.plain)
-                        .font(.caption)
-                        .foregroundStyle(.blue)
-                        .padding(.top, 8)
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("s3://\(appState.settings.s3Bucket)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
                     }
-                    .animatedAppearance(delay: 0.3)
+
+                    Button("Change bucket") {
+                        bucketName = appState.settings.s3Bucket
+                        appState.settings.s3Bucket = ""
+                        appState.settings.save()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .padding(.top, 8)
                 }
+                .animatedAppearance(delay: 0.3)
             }
         }
         .padding(32)
-        .task {
-            await loadWorkflows()
-        }
-        .sheet(isPresented: $showingNewWorkflow) {
-            WorkflowEditorView(workflow: nil)
-                .environmentObject(appState)
+        .onAppear {
+            bucketName = appState.settings.s3Bucket
         }
     }
 
-    private func loadWorkflows() async {
-        isLoading = true
-        workflows = await appState.loadWorkflows()
-        isLoading = false
-    }
-
-    private func createSampleWorkflow() {
-        Task {
-            let sample = WorkflowConfiguration.sampleVFXWorkflow
-            try? await appState.saveWorkflow(sample)
-            await loadWorkflows()
-            selectedWorkflowId = sample.id
-        }
-    }
-}
-
-struct WorkflowCard: View {
-    let workflow: WorkflowConfiguration
-    let isSelected: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "folder.fill")
-                    .foregroundStyle(isSelected ? .white : .purple)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.white)
-                }
-            }
-
-            Text(workflow.name)
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .foregroundStyle(isSelected ? .white : .primary)
-                .lineLimit(1)
-
-            Text(workflow.bucket)
-                .font(.caption)
-                .foregroundStyle(isSelected ? .white.opacity(0.8) : .secondary)
-                .lineLimit(1)
-        }
-        .padding(12)
-        .frame(width: 140, height: 90)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(isSelected ? Color.purple : Color.secondary.opacity(0.1))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(isSelected ? Color.clear : Color.secondary.opacity(0.2), lineWidth: 1)
-        )
-        .scaleEffect(isSelected ? 1.05 : 1.0)
-        .animation(AnimationPresets.spring, value: isSelected)
+    private func saveBucket() {
+        guard !bucketName.isEmpty else { return }
+        appState.settings.s3Bucket = bucketName
+        appState.settings.save()
     }
 }
 

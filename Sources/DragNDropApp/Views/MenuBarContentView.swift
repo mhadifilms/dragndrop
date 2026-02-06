@@ -7,7 +7,8 @@ struct MenuBarContentView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.openSettings) private var openSettings
     @State private var showingQuickSettings = false
-    @State private var showingWorkflowPicker = false
+    @State private var recentUploads: [UploadHistoryItem] = []
+    @State private var showingRecentUploads = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,8 +21,8 @@ struct MenuBarContentView: View {
             // Main content
             if !appState.isAuthenticated {
                 authenticationPrompt
-            } else if appState.activeWorkflow == nil {
-                workflowPrompt
+            } else if appState.settings.s3Bucket.isEmpty {
+                bucketPrompt
             } else {
                 mainContent
             }
@@ -121,44 +122,40 @@ struct MenuBarContentView: View {
         .padding(24)
     }
 
-    // MARK: - Workflow Prompt
+    // MARK: - Bucket Prompt
 
-    private var workflowPrompt: some View {
+    private var bucketPrompt: some View {
         VStack(spacing: 16) {
-            Image(systemName: "folder.badge.gearshape")
+            Image(systemName: "externaldrive.badge.icloud")
                 .font(.system(size: 48))
                 .foregroundStyle(.secondary)
                 .pulse(duration: 2.0)
 
-            Text("Select a Workflow")
+            Text("Configure S3 Bucket")
                 .font(.headline)
                 .animatedAppearance(delay: 0.1)
 
-            Text("Choose or create a workflow to define where files are uploaded.")
+            Text("Set your S3 bucket name in Settings to start uploading files.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .animatedAppearance(delay: 0.2)
 
-            Button("Choose Workflow") {
-                showingWorkflowPicker = true
+            Button("Open Settings") {
+                openSettingsWindow()
             }
             .buttonStyle(.borderedProminent)
             .animatedAppearance(delay: 0.3)
         }
         .padding(24)
-        .sheet(isPresented: $showingWorkflowPicker) {
-            WorkflowPickerView()
-                .environmentObject(appState)
-        }
     }
 
     // MARK: - Main Content
 
     private var mainContent: some View {
         VStack(spacing: 12) {
-            // Workflow info
-            workflowInfoSection
+            // Bucket info
+            bucketInfoSection
 
             // Drop zone
             DropZoneView()
@@ -170,18 +167,60 @@ struct MenuBarContentView: View {
             if appState.hasActiveUploads {
                 activeUploadsSection
             }
+
+            // Recent uploads (when no active uploads)
+            if !appState.hasActiveUploads && !recentUploads.isEmpty {
+                recentUploadsSection
+            }
         }
         .padding(.vertical, 12)
+        .task {
+            await loadRecentUploads()
+        }
     }
 
-    private var workflowInfoSection: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(appState.activeWorkflow?.name ?? "Unknown")
+    private func loadRecentUploads() async {
+        if let services = appState.services {
+            recentUploads = await services.historyStore.getRecent(3)
+        }
+    }
+
+    private var recentUploadsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Recent Uploads")
                     .font(.subheadline)
                     .fontWeight(.medium)
 
-                Text("s3://\(appState.activeWorkflow?.bucket ?? "")")
+                Spacer()
+
+                Button {
+                    showingRecentUploads.toggle()
+                } label: {
+                    Text(showingRecentUploads ? "Hide" : "Show")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.blue)
+            }
+
+            if showingRecentUploads {
+                ForEach(recentUploads) { item in
+                    RecentUploadRow(item: item)
+                }
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private var bucketInfoSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("S3 Bucket")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Text("s3://\(appState.settings.s3Bucket)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -189,19 +228,15 @@ struct MenuBarContentView: View {
             Spacer()
 
             Button {
-                showingWorkflowPicker = true
+                openSettingsWindow()
             } label: {
-                Text("Change")
+                Image(systemName: "gearshape")
                     .font(.caption)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.blue)
+            .foregroundStyle(.secondary)
         }
         .padding(.horizontal)
-        .sheet(isPresented: $showingWorkflowPicker) {
-            WorkflowPickerView()
-                .environmentObject(appState)
-        }
     }
 
     private var activeUploadsSection: some View {
@@ -359,6 +394,59 @@ struct UploadJobRow: View {
         case .audio: return .green
         case .project: return .yellow
         case .other: return .gray
+        }
+    }
+}
+
+// MARK: - Recent Upload Row
+
+struct RecentUploadRow: View {
+    let item: UploadHistoryItem
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            // Status icon
+            Image(systemName: item.status == .completed ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .font(.caption)
+                .foregroundStyle(item.status == .completed ? .green : .red)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.filename)
+                    .font(.caption)
+                    .lineLimit(1)
+
+                Text(item.startedAt, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            // Copy S3 URI button
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(item.s3URI, forType: .string)
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .opacity(isHovered ? 1 : 0)
+            .help("Copy S3 URI")
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isHovered ? Color.secondary.opacity(0.1) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hovering
+            }
         }
     }
 }

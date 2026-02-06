@@ -30,6 +30,10 @@ public struct UploadJob: Identifiable, Equatable, Sendable {
     public var lastRetryAt: Date?
     public var retryErrors: [String]
 
+    // Companion files from skills
+    public var companionFiles: [CompanionFile]
+    public var skillStatus: SkillStatus
+
     public init(
         id: UUID = UUID(),
         sourceURL: URL,
@@ -51,7 +55,9 @@ public struct UploadJob: Identifiable, Equatable, Sendable {
         consoleURL: String? = nil,
         retryAttempts: Int = 0,
         lastRetryAt: Date? = nil,
-        retryErrors: [String] = []
+        retryErrors: [String] = [],
+        companionFiles: [CompanionFile] = [],
+        skillStatus: SkillStatus = .notStarted
     ) {
         self.id = id
         self.sourceURL = sourceURL
@@ -74,6 +80,8 @@ public struct UploadJob: Identifiable, Equatable, Sendable {
         self.retryAttempts = retryAttempts
         self.lastRetryAt = lastRetryAt
         self.retryErrors = retryErrors
+        self.companionFiles = companionFiles
+        self.skillStatus = skillStatus
     }
 
     public var fullS3Path: String {

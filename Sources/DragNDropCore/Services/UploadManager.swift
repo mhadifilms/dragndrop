@@ -23,6 +23,16 @@ public actor UploadManager {
     private var isRunning: Bool = false
     private var isPaused: Bool = false
 
+    // Pre-processing
+    private var enablePreProcessing: Bool = false
+    private var preProcessingScript: String = ""
+    private var bundledToolsPath: String?
+
+    // Skills
+    private var skillManager: SkillManager?
+    private var skillExecutor: SkillExecutor?
+    private var enableSkills: Bool = false
+
     // Retry settings
     private var maxRetryAttempts: Int = 3
     private var baseRetryDelaySeconds: Double = 5.0
@@ -57,6 +67,160 @@ public actor UploadManager {
         self.baseRetryDelaySeconds = Double(settings.retryDelaySeconds)
     }
 
+    /// Configures pre-processing script
+    public func configurePreProcessing(enabled: Bool, script: String, toolsPath: String?) {
+        self.enablePreProcessing = enabled
+        self.preProcessingScript = script
+        self.bundledToolsPath = toolsPath
+    }
+
+    /// Configures skills execution
+    public func configureSkills(enabled: Bool, manager: SkillManager, executor: SkillExecutor) {
+        self.enableSkills = enabled
+        self.skillManager = manager
+        self.skillExecutor = executor
+    }
+
+    /// Updates the skills enabled state
+    public func setSkillsEnabled(_ enabled: Bool) {
+        self.enableSkills = enabled
+    }
+
+    /// Runs the pre-processing script on a file
+    private func runPreProcessingScript(job: UploadJob) async throws {
+        guard enablePreProcessing, !preProcessingScript.isEmpty else { return }
+
+        let filePath = job.sourceURL.path
+        let filename = job.sourceURL.lastPathComponent
+        let destination = job.destinationPath
+
+        logger.info("Running pre-processing script for: \(filename)")
+
+        // Write script to temp file
+        let scriptPath = FileManager.default.temporaryDirectory.appendingPathComponent("dragndrop_preprocess_\(UUID().uuidString).sh")
+        try preProcessingScript.write(to: scriptPath, atomically: true, encoding: .utf8)
+
+        defer {
+            try? FileManager.default.removeItem(at: scriptPath)
+        }
+
+        // Build environment
+        var environment = ProcessInfo.processInfo.environment
+        environment["INPUT_FILE"] = filePath
+        environment["FILENAME"] = filename
+        environment["DESTINATION"] = destination
+
+        // Add bundled tools to PATH if available
+        if let toolsPath = bundledToolsPath {
+            let currentPath = environment["PATH"] ?? "/usr/bin:/bin"
+            environment["PATH"] = "\(toolsPath):\(currentPath)"
+            environment["FFMPEG"] = "\(toolsPath)/ffmpeg"
+            environment["FFPROBE"] = "\(toolsPath)/ffprobe"
+        }
+
+        // Run script
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [scriptPath.path]
+        process.environment = environment
+        process.currentDirectoryURL = job.sourceURL.deletingLastPathComponent()
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        try process.run()
+        process.waitUntilExit()
+
+        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+
+        if let output = String(data: outputData, encoding: .utf8), !output.isEmpty {
+            logger.info("Pre-processing output: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
+        }
+
+        if process.terminationStatus != 0 {
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            logger.warning("Pre-processing script exited with status \(process.terminationStatus): \(errorOutput)")
+            // Don't fail the upload, just log the warning
+        }
+    }
+
+    /// Runs skills for a job and returns companion files
+    private func runSkillsForJob(job: inout UploadJob) async -> [CompanionFile] {
+        guard let skillManager = skillManager,
+              let skillExecutor = skillExecutor else {
+            return []
+        }
+
+        // Get enabled skills applicable to this file
+        let fileExtension = job.sourceURL.pathExtension
+        let applicableSkills = await skillManager.getApplicable(forExtension: fileExtension)
+
+        guard !applicableSkills.isEmpty else {
+            job.skillStatus = .skipped
+            return []
+        }
+
+        logger.info("Running \(applicableSkills.count) skills for: \(job.displayName)")
+
+        // Update job status with total count
+        job.skillStatus = .running(currentSkill: applicableSkills.first?.name ?? "", completed: 0, total: applicableSkills.count)
+        activeJobs[job.id] = job
+        notifyStatusChange()
+
+        // Set bundled tools path
+        if let toolsPath = bundledToolsPath {
+            await skillExecutor.setBundledToolsPath(toolsPath)
+        }
+
+        let jobId = job.id
+        let totalSkills = applicableSkills.count
+
+        // Execute skills in parallel
+        let companionFiles = await skillExecutor.executeSkills(
+            applicableSkills,
+            for: job.sourceURL
+        ) { [weak self] skill, status in
+            self?.logger.debug("Skill '\(skill.name)' \(status)")
+        }
+
+        logger.info("Generated \(companionFiles.count) companion files for: \(job.displayName)")
+        return companionFiles
+    }
+
+    /// Uploads companion files to the same S3 path as the main file
+    private func uploadCompanionFiles(for job: UploadJob) async {
+        guard !job.companionFiles.isEmpty else { return }
+
+        let basePath = (job.destinationPath as NSString).deletingLastPathComponent
+
+        for companion in job.companionFiles {
+            let companionKey = basePath.isEmpty
+                ? companion.filename
+                : "\(basePath)/\(companion.filename)"
+
+            logger.info("Uploading companion file: \(companion.filename) -> \(companionKey)")
+
+            do {
+                // Create a simple job for the companion file
+                var companionJob = UploadJob.simple(
+                    url: companion.url,
+                    bucket: job.bucket,
+                    key: companionKey,
+                    region: job.region
+                )
+
+                try await uploadService.uploadFile(job: &companionJob) { _ in }
+                logger.info("Companion file uploaded: \(companion.filename)")
+            } catch {
+                // Log error but don't fail the main upload
+                logger.warning("Failed to upload companion file \(companion.filename): \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// Calculates exponential backoff delay with jitter
     private func calculateRetryDelay(attempt: Int) -> TimeInterval {
         // Exponential backoff: baseDelay * 2^attempt
@@ -79,9 +243,10 @@ public actor UploadManager {
     /// Adds files to the upload queue after processing
     public func addFiles(
         urls: [URL],
-        workflow: WorkflowConfiguration
+        workflow: WorkflowConfiguration,
+        settings: AppSettings? = nil
     ) async throws -> [ProcessedItem] {
-        let processed = try await extractionService.processFiles(urls: urls, workflow: workflow)
+        let processed = try await extractionService.processFiles(urls: urls, workflow: workflow, settings: settings)
 
         for item in processed {
             if let job = item.job {
@@ -280,6 +445,23 @@ public actor UploadManager {
                 throw UploadError.authenticationError("Not authenticated")
             }
 
+            // Run pre-processing script if enabled (only on first attempt)
+            if job.retryAttempts == 0 {
+                try await runPreProcessingScript(job: job)
+            }
+
+            // Run skills if enabled (only on first attempt, and not for sequences)
+            if job.retryAttempts == 0 && enableSkills && !job.fileInfo.isSequence {
+                job.skillStatus = .running(currentSkill: "Preparing", completed: 0, total: 0)
+                activeJobs[id] = job
+                notifyStatusChange()
+
+                job.companionFiles = await runSkillsForJob(job: &job)
+                job.skillStatus = .completed(count: job.companionFiles.count)
+                activeJobs[id] = job
+                notifyStatusChange()
+            }
+
             // Check if this is a sequence
             if job.fileInfo.isSequence {
                 try await uploadService.uploadSequence(job: &job) { [weak self] progress in
@@ -295,15 +477,27 @@ public actor UploadManager {
                 }
             }
 
+            // Upload companion files if any
+            if !job.companionFiles.isEmpty {
+                await uploadCompanionFiles(for: job)
+            }
+
             // Success
             activeJobs.removeValue(forKey: id)
             completedJobs.append(job)
+
+            // Clean up companion files
+            if let executor = skillExecutor {
+                for companion in job.companionFiles {
+                    await executor.cleanupCompanionFile(companion)
+                }
+            }
 
             // Add to history
             let historyItem = UploadHistoryItem.from(job: job)
             await historyStore.add(historyItem)
 
-            logger.info("Upload completed: \(job.displayName)")
+            logger.info("Upload completed: \(job.displayName) with \(job.companionFiles.count) companion files")
 
         } catch {
             let uploadError = mapToUploadError(error)

@@ -21,6 +21,8 @@ public actor ServiceContainer {
     public let historyStore: UploadHistoryStore
     public let notificationService: NotificationService
     public let cliServer: CLIServerService
+    public let skillManager: SkillManager
+    public let skillExecutor: SkillExecutor
 
     public init() {
         self.authService = AWSAuthenticationService()
@@ -30,6 +32,8 @@ public actor ServiceContainer {
         self.historyStore = UploadHistoryStore()
         self.notificationService = NotificationService()
         self.cliServer = CLIServerService()
+        self.skillManager = SkillManager()
+        self.skillExecutor = SkillExecutor()
 
         self.uploadManager = UploadManager(
             authService: authService,
@@ -47,6 +51,9 @@ public actor ServiceContainer {
         // Load history
         await historyStore.load()
 
+        // Load skills
+        await skillManager.load()
+
         // Setup notifications
         await notificationService.setupCategories()
         _ = try? await notificationService.requestAuthorization()
@@ -57,6 +64,12 @@ public actor ServiceContainer {
         }
     }
 
+    /// Configures skills for upload manager
+    public func configureSkills(enabled: Bool, toolsPath: String?) async {
+        await skillExecutor.setBundledToolsPath(toolsPath)
+        await uploadManager.configureSkills(enabled: enabled, manager: skillManager, executor: skillExecutor)
+    }
+
     /// Starts the CLI server
     public func startCLIServer(port: UInt16) async throws {
         try await cliServer.start(port: port)
@@ -65,6 +78,11 @@ public actor ServiceContainer {
     /// Stops the CLI server
     public func stopCLIServer() async {
         await cliServer.stop()
+    }
+
+    /// Configures pre-processing settings
+    public func configurePreProcessing(enabled: Bool, script: String, toolsPath: String?) async {
+        await uploadManager.configurePreProcessing(enabled: enabled, script: script, toolsPath: toolsPath)
     }
 
     // MARK: - CLI Command Handler

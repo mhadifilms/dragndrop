@@ -52,12 +52,12 @@ struct UploadPreviewView: View {
             Spacer()
 
             // Destination bucket info
-            if let workflow = appState.activeWorkflow {
+            if !appState.settings.s3Bucket.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: "externaldrive.connected.to.line.below")
                         .foregroundStyle(.secondary)
 
-                    Text("s3://\(workflow.bucket)")
+                    Text("s3://\(appState.settings.s3Bucket)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

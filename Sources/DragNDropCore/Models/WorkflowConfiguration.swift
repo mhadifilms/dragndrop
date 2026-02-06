@@ -87,7 +87,7 @@ public struct PathTemplate: Codable, Equatable, Sendable {
     /// Defined placeholders and their properties
     public var placeholders: [Placeholder]
 
-    /// Static prefix path (e.g., "CLIENTS/example_client/03_MyShow/")
+    /// Static prefix path (e.g., "projects/")
     public var staticPrefix: String
 
     /// Static suffix path (e.g., "/03_VFX/")
@@ -607,15 +607,15 @@ extension WorkflowConfiguration {
             bucket: "sync-services",
             region: "us-east-1",
             pathTemplate: PathTemplate(
-                template: "CLIENTS/example_client/03_MyShow/{SHOW}_S02/{EPISODE}20_WORKING/{show}_{episode}_{shot}_{category}/03_VFX/",
+                template: "projects/{SHOW}/season02/{EPISODE}/shots/{shot}_{category}/vfx/",
                 placeholders: [
                     Placeholder(name: "SHOW", displayName: "Show Name", description: "The name of the show"),
                     Placeholder(name: "EPISODE", displayName: "Episode", description: "Episode number"),
                     Placeholder(name: "shot", displayName: "Shot ID", description: "Shot identifier"),
                     Placeholder(name: "category", displayName: "Category", description: "Shot category")
                 ],
-                staticPrefix: "CLIENTS/example_client/03_MyShow/",
-                staticSuffix: "/03_VFX/"
+                staticPrefix: "projects/",
+                staticSuffix: "/vfx/"
             ),
             extractionRules: [
                 ExtractionRule(

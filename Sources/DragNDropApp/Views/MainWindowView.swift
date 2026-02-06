@@ -61,6 +61,19 @@ struct MainWindowView: View {
             }
             return .handled
         }
+        // Tab navigation shortcuts (Cmd+1 through Cmd+5)
+        .onKeyPress(characters: CharacterSet(charactersIn: "12345"), phases: .down) { press in
+            guard press.modifiers.contains(.command) else { return .ignored }
+            switch press.characters {
+            case "1": selectedTab = 4  // Dashboard
+            case "2": selectedTab = 0  // Drop Zone
+            case "3": selectedTab = 1  // Active Uploads
+            case "4": selectedTab = 3  // Queue
+            case "5": selectedTab = 2  // History
+            default: return .ignored
+            }
+            return .handled
+        }
     }
 
     // MARK: - Sidebar
@@ -99,12 +112,12 @@ struct MainWindowView: View {
                         .font(.caption)
                 }
 
-                // Active workflow
-                if let workflow = appState.activeWorkflow {
+                // S3 Bucket
+                if !appState.settings.s3Bucket.isEmpty {
                     HStack {
-                        Image(systemName: "folder.badge.gearshape")
+                        Image(systemName: "externaldrive.badge.icloud")
                             .foregroundStyle(.secondary)
-                        Text(workflow.name)
+                        Text(appState.settings.s3Bucket)
                             .font(.caption)
                             .lineLimit(1)
                     }
@@ -125,13 +138,10 @@ struct MainWindowView: View {
                     .font(.largeTitle)
                     .fontWeight(.bold)
 
-                if let workflow = appState.activeWorkflow {
+                if !appState.settings.s3Bucket.isEmpty {
                     HStack(spacing: 8) {
-                        Image(systemName: "folder.badge.gearshape")
-                        Text(workflow.name)
-                        Text("·")
-                            .foregroundStyle(.tertiary)
-                        Text("s3://\(workflow.bucket)")
+                        Image(systemName: "externaldrive.badge.icloud")
+                        Text("s3://\(appState.settings.s3Bucket)")
                             .foregroundStyle(.secondary)
                     }
                     .font(.subheadline)
@@ -360,12 +370,13 @@ struct UploadHistoryView: View {
                 // Clear
                 Button {
                     Task {
-                        // Clear history
+                        await clearHistory()
                     }
                 } label: {
                     Label("Clear", systemImage: "trash")
                 }
                 .foregroundStyle(.red)
+                .disabled(historyItems.isEmpty)
             }
             .padding()
 
@@ -402,10 +413,17 @@ struct UploadHistoryView: View {
 
     private func loadHistory() async {
         isLoading = true
-        // In a real implementation, this would fetch from the history store
-        // For now, we'll use placeholder data
-        historyItems = []
+        if let services = appState.services {
+            historyItems = await services.historyStore.getAll()
+        }
         isLoading = false
+    }
+
+    private func clearHistory() async {
+        if let services = appState.services {
+            await services.historyStore.clear()
+            await loadHistory()
+        }
     }
 }
 
@@ -709,17 +727,35 @@ struct ActiveUploadCard: View {
 
                 // Speed and ETA with animated upload arrow
                 VStack(alignment: .trailing, spacing: 2) {
-                    HStack(spacing: 4) {
-                        AnimatedUploadArrow()
-                        Text(job.progress.formattedUploadSpeed)
-                            .font(.caption)
-                            .monospacedDigit()
+                    // Show skill status if running
+                    if job.skillStatus.isRunning {
+                        HStack(spacing: 4) {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                            Text(job.skillStatus.displayText)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    } else {
+                        HStack(spacing: 4) {
+                            AnimatedUploadArrow()
+                            Text(job.progress.formattedUploadSpeed)
+                                .font(.caption)
+                                .monospacedDigit()
+                        }
+
+                        if let eta = job.progress.formattedTimeRemaining {
+                            Text(eta)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
-                    if let eta = job.progress.formattedTimeRemaining {
-                        Text(eta)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    // Show companion file count if completed
+                    if case .completed(let count) = job.skillStatus, count > 0 {
+                        Text("+\(count) companion")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
                     }
                 }
 

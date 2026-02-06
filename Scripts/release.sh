@@ -17,7 +17,7 @@ fi
 
 VERSION="$1"
 TAG="v$VERSION"
-DMG_FILE="dist/$APP_NAME-$VERSION.dmg"
+DMG_FILE=".build/dist/$APP_NAME-$VERSION.dmg"
 
 echo "=== DragNDrop Release Script ==="
 echo "Version: $VERSION"
@@ -50,9 +50,9 @@ fi
 
 # Generate checksum
 echo "Generating checksum..."
-cd dist
+cd .build/dist
 shasum -a 256 "$APP_NAME-$VERSION.dmg" > "$APP_NAME-$VERSION.dmg.sha256"
-cd ..
+cd ../..
 
 # Check if tag already exists
 if git rev-parse "$TAG" >/dev/null 2>&1; then
@@ -78,8 +78,8 @@ echo "Creating GitHub release..."
 gh release create "$TAG" \
     --title "$APP_NAME $TAG" \
     --generate-notes \
-    "dist/$APP_NAME-$VERSION.dmg" \
-    "dist/$APP_NAME-$VERSION.dmg.sha256"
+    ".build/dist/$APP_NAME-$VERSION.dmg" \
+    ".build/dist/$APP_NAME-$VERSION.dmg.sha256"
 
 echo ""
 echo "=== Release Complete ==="

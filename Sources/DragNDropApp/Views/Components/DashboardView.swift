@@ -616,11 +616,13 @@ struct SpeedGraphWidget: View {
 
     private func startSimulation() {
         // Simulate speed updates for demo
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-            currentSpeed = Double.random(in: 30...60)
-            speedHistory.append(currentSpeed)
-            if speedHistory.count > 30 {
-                speedHistory.removeFirst()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [self] _ in
+            Task { @MainActor in
+                currentSpeed = Double.random(in: 30...60)
+                speedHistory.append(currentSpeed)
+                if speedHistory.count > 30 {
+                    speedHistory.removeFirst()
+                }
             }
         }
     }
