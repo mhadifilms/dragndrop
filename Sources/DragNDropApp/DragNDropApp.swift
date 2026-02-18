@@ -411,7 +411,7 @@ class AppState: ObservableObject {
         }
 
         do {
-            let processed = try await services.uploadManager.addFiles(urls: urls, workflow: currentWorkflow, settings: settings)
+            let processed = try await services.uploadManager.addFiles(urls: urls, workflow: currentWorkflow)
             droppedItems = processed
             pendingJobs = await services.uploadManager.getPendingJobs()
 

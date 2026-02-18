@@ -9,55 +9,6 @@ public actor FileExtractionService {
 
     public init() {}
 
-    // MARK: - Simple Template Path Resolution
-
-    /// Builds path from a user-defined template
-    /// Template placeholders: {show}, {SHOW}, {episode}, {shot}, {type}, {type_folder}
-    /// Filename pattern extracts groups that map to these placeholders
-    public func buildPathFromTemplate(
-        filename: String,
-        template: String,
-        filenamePattern: String,
-        typeMappings: [String: String]
-    ) -> SmartPathResult {
-        // Extract values using the filename pattern
-        guard let regex = try? NSRegularExpression(pattern: filenamePattern, options: []),
-              let match = regex.firstMatch(in: filename, options: [], range: NSRange(filename.startIndex..., in: filename)) else {
-            return SmartPathResult(success: false, path: nil, error: "Filename doesn't match pattern")
-        }
-
-        var values: [String: String] = [:]
-
-        // Extract capture groups: 1=show, 2=episode, 3=shot, 4=type
-        if match.numberOfRanges > 1, let range = Range(match.range(at: 1), in: filename) {
-            let show = String(filename[range])
-            values["show"] = show
-            values["SHOW"] = show.uppercased()
-        }
-        if match.numberOfRanges > 2, let range = Range(match.range(at: 2), in: filename) {
-            values["episode"] = String(filename[range])
-        }
-        if match.numberOfRanges > 3, let range = Range(match.range(at: 3), in: filename) {
-            values["shot"] = String(filename[range])
-        }
-        if match.numberOfRanges > 4, let range = Range(match.range(at: 4), in: filename) {
-            let type = String(filename[range]).lowercased()
-            values["type"] = type
-            values["category"] = type
-            values["type_folder"] = typeMappings[type] ?? type
-        }
-
-        // Replace placeholders in template
-        var path = template
-        for (key, value) in values {
-            path = path.replacingOccurrences(of: "{\(key)}", with: value)
-        }
-
-        logger.info("Path resolved: \(filename) → \(path)")
-
-        return SmartPathResult(success: true, path: path, error: nil, extractedValues: values)
-    }
-
     // MARK: - Main Extraction
 
     /// Extracts placeholder values from a filename using the workflow's extraction rules
@@ -101,57 +52,28 @@ public actor FileExtractionService {
     /// Processes a dropped file URL and creates an upload job
     public func processFile(
         url: URL,
-        workflow: WorkflowConfiguration,
-        settings: AppSettings? = nil
+        workflow: WorkflowConfiguration
     ) async throws -> UploadJob {
         let fileInfo = await analyzeFile(url: url, workflow: workflow)
 
-        var finalPath: String
-        var extractedValues: [String: String] = [:]
-
-        // Use template-based path resolution if enabled
-        if let settings = settings, settings.enableSmartPathResolution {
-            let result = buildPathFromTemplate(
-                filename: fileInfo.filename,
-                template: settings.uploadPathPattern,
-                filenamePattern: settings.filenamePattern,
-                typeMappings: settings.typeFolderMappings
-            )
-
-            if result.success, let path = result.path {
-                finalPath = path
-                extractedValues = result.extractedValues
-            } else {
-                // Fall back to standard extraction
-                let extraction = extract(filename: fileInfo.filename, using: workflow)
-                guard extraction.success, let destPath = extraction.destinationPath else {
-                    throw ExtractionError.noMatchingRule(fileInfo.filename)
-                }
-                finalPath = destPath
-                extractedValues = extraction.values
-            }
-        } else {
-            // Standard extraction
-            let extraction = extract(filename: fileInfo.filename, using: workflow)
-            guard extraction.success, let destPath = extraction.destinationPath else {
-                throw ExtractionError.noMatchingRule(fileInfo.filename)
-            }
-            finalPath = destPath
-            extractedValues = extraction.values
+        let extraction = extract(filename: fileInfo.filename, using: workflow)
+        guard extraction.success, let destPath = extraction.destinationPath else {
+            throw ExtractionError.noMatchingRule(fileInfo.filename)
         }
+
+        var finalPath = destPath
+        var extractedValues = extraction.values
 
         // Ensure path ends with /
         if !finalPath.hasSuffix("/") {
             finalPath += "/"
         }
 
-        // Add subfolder based on file type if configured (only for non-smart paths)
-        if settings?.enableSmartPathResolution != true {
-            if let typeConfig = workflow.fileTypeConfigs.first(where: {
-                $0.extensions.contains(fileInfo.fileExtension.lowercased())
-            }), let subfolder = typeConfig.destinationSubfolder {
-                finalPath += subfolder + "/"
-            }
+        // Add subfolder based on file type if configured
+        if let typeConfig = workflow.fileTypeConfigs.first(where: {
+            $0.extensions.contains(fileInfo.fileExtension.lowercased())
+        }), let subfolder = typeConfig.destinationSubfolder {
+            finalPath += subfolder + "/"
         }
 
         finalPath += fileInfo.filename
@@ -169,8 +91,7 @@ public actor FileExtractionService {
     /// Processes multiple dropped files/folders
     public func processFiles(
         urls: [URL],
-        workflow: WorkflowConfiguration,
-        settings: AppSettings? = nil
+        workflow: WorkflowConfiguration
     ) async throws -> [ProcessedItem] {
         var results: [ProcessedItem] = []
 
@@ -188,10 +109,10 @@ public actor FileExtractionService {
 
                 if isDirectory.boolValue {
                     // Process directory - could be image sequence or folder of files
-                    let sequenceResult = await processDirectory(url: url, workflow: workflow, settings: settings)
+                    let sequenceResult = await processDirectory(url: url, workflow: workflow)
                     results.append(contentsOf: sequenceResult)
                 } else {
-                    let job = try await processFile(url: url, workflow: workflow, settings: settings)
+                    let job = try await processFile(url: url, workflow: workflow)
                     results.append(ProcessedItem(url: url, job: job, error: nil))
                 }
             } catch {
@@ -211,8 +132,7 @@ public actor FileExtractionService {
     /// Processes a directory, detecting image sequences
     private func processDirectory(
         url: URL,
-        workflow: WorkflowConfiguration,
-        settings: AppSettings? = nil
+        workflow: WorkflowConfiguration
     ) async -> [ProcessedItem] {
         var results: [ProcessedItem] = []
 
@@ -477,25 +397,6 @@ public struct ExtractionResult: Sendable {
         self.matchedRule = matchedRule
         self.confidence = confidence
         self.error = error
-    }
-}
-
-public struct SmartPathResult: Sendable {
-    public let success: Bool
-    public let path: String?
-    public let error: String?
-    public let extractedValues: [String: String]
-
-    public init(
-        success: Bool,
-        path: String?,
-        error: String?,
-        extractedValues: [String: String] = [:]
-    ) {
-        self.success = success
-        self.path = path
-        self.error = error
-        self.extractedValues = extractedValues
     }
 }
 

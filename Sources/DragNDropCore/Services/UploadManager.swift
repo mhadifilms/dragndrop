@@ -243,10 +243,9 @@ public actor UploadManager {
     /// Adds files to the upload queue after processing
     public func addFiles(
         urls: [URL],
-        workflow: WorkflowConfiguration,
-        settings: AppSettings? = nil
+        workflow: WorkflowConfiguration
     ) async throws -> [ProcessedItem] {
-        let processed = try await extractionService.processFiles(urls: urls, workflow: workflow, settings: settings)
+        let processed = try await extractionService.processFiles(urls: urls, workflow: workflow)
 
         for item in processed {
             if let job = item.job {
