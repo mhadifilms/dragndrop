@@ -105,7 +105,8 @@ public struct Skill: Codable, Identifiable, Equatable, Sendable {
         case let s where s.contains("audio") && s.contains("extract"): return "waveform"
         case let s where s.contains("gif"): return "photo.on.rectangle.angled"
         case let s where s.contains("media info") || s.contains("info"): return "info.circle"
-        case let s where s.contains("first") && s.contains("last"): return "rectangle.split.2x1"
+        case let s where s.contains("first") && s.contains("frame"): return "backward.frame"
+        case let s where s.contains("last") && s.contains("frame"): return "forward.frame"
         case let s where s.contains("h.264") || s.contains("h264") || s.contains("preview"): return "play.rectangle"
         case let s where s.contains("contact") && s.contains("sheet"): return "square.grid.3x3"
         case let s where s.contains("waveform"): return "waveform.path.ecg"
@@ -126,7 +127,8 @@ extension Skill {
         audioExtractSkill,
         gifPreviewSkill,
         mediaInfoSkill,
-        firstLastFrameSkill,
+        firstFrameSkill,
+        lastFrameSkill,
         h264PreviewSkill,
         contactSheetSkill,
         waveformSkill
@@ -140,7 +142,8 @@ extension Skill {
     public static let audioExtractSkillId = UUID(uuidString: "00000000-0000-0000-0000-000000000005")!
     public static let gifPreviewSkillId = UUID(uuidString: "00000000-0000-0000-0000-000000000006")!
     public static let mediaInfoSkillId = UUID(uuidString: "00000000-0000-0000-0000-000000000007")!
-    public static let firstLastFrameSkillId = UUID(uuidString: "00000000-0000-0000-0000-000000000008")!
+    public static let firstFrameSkillId = UUID(uuidString: "00000000-0000-0000-0000-000000000008")!
+    public static let lastFrameSkillId = UUID(uuidString: "00000000-0000-0000-0000-00000000000c")!
     public static let h264PreviewSkillId = UUID(uuidString: "00000000-0000-0000-0000-000000000009")!
     public static let contactSheetSkillId = UUID(uuidString: "00000000-0000-0000-0000-00000000000a")!
     public static let waveformSkillId = UUID(uuidString: "00000000-0000-0000-0000-00000000000b")!
@@ -415,43 +418,69 @@ fi
         timeoutSeconds: 60
     )
 
-    /// First/Last Frame - Extract first and last frame as PNG
-    public static let firstLastFrameSkill = Skill(
-        id: firstLastFrameSkillId,
-        name: "First & Last Frame",
-        description: "Extract first and last frame as PNG images",
+    /// First Frame - Extract first frame as PNG
+    public static let firstFrameSkill = Skill(
+        id: firstFrameSkillId,
+        name: "First Frame",
+        description: "Extract first frame as PNG image",
         enabled: false,
         isBuiltIn: true,
         script: """
 #!/bin/bash
-# Extract first and last frame as PNG
-# Output: {filename}_first.png and {filename}_last.png
+# Extract first frame as PNG
+# Output: {filename}_first.png
 
 set -e
 
-FIRST_FILE="${OUTPUT_DIR}/${FILENAME%.*}_first.png"
-LAST_FILE="${OUTPUT_DIR}/${FILENAME%.*}_last.png"
+OUTPUT_FILE="${OUTPUT_DIR}/${FILENAME%.*}_first.png"
 
-# Extract first frame
-"$FFMPEG" -y -i "$INPUT_FILE" -vframes 1 -vf "scale=1920:-1" "$FIRST_FILE" 2>/dev/null
+"$FFMPEG" -y -i "$INPUT_FILE" -vframes 1 -vf "scale=1920:-1" "$OUTPUT_FILE" 2>/dev/null
 
-# Get total frames and duration
-DURATION=$("$FFPROBE" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$INPUT_FILE" 2>/dev/null)
-
-# Extract last frame (seek to near end)
-SEEK_TIME=$(echo "$DURATION - 0.1" | bc 2>/dev/null || echo "$DURATION")
-"$FFMPEG" -y -ss "$SEEK_TIME" -i "$INPUT_FILE" -vframes 1 -vf "scale=1920:-1" "$LAST_FILE" 2>/dev/null
-
-if [ -f "$FIRST_FILE" ] && [ -f "$LAST_FILE" ]; then
-    echo "First frame: $FIRST_FILE"
-    echo "Last frame: $LAST_FILE"
+if [ -f "$OUTPUT_FILE" ]; then
+    echo "First frame: $OUTPUT_FILE"
 else
-    echo "Failed to extract frames" >&2
+    echo "Failed to extract first frame" >&2
     exit 1
 fi
 """,
         applicableExtensions: ["mov", "mp4", "avi", "mkv", "mxf", "m4v", "webm"],
-        outputSuffix: "_first.png",  // Note: also creates _last.png
+        outputSuffix: "_first.png",
+        outputType: .image,
+        timeoutSeconds: 60
+    )
+
+    /// Last Frame - Extract last frame as PNG
+    public static let lastFrameSkill = Skill(
+        id: lastFrameSkillId,
+        name: "Last Frame",
+        description: "Extract last frame as PNG image",
+        enabled: false,
+        isBuiltIn: true,
+        script: """
+#!/bin/bash
+# Extract last frame as PNG
+# Output: {filename}_last.png
+
+set -e
+
+OUTPUT_FILE="${OUTPUT_DIR}/${FILENAME%.*}_last.png"
+
+# Get video duration
+DURATION=$("$FFPROBE" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$INPUT_FILE" 2>/dev/null)
+
+# Seek to near end and extract last frame
+SEEK_TIME=$(echo "$DURATION - 0.1" | bc 2>/dev/null || echo "$DURATION")
+"$FFMPEG" -y -ss "$SEEK_TIME" -i "$INPUT_FILE" -vframes 1 -vf "scale=1920:-1" "$OUTPUT_FILE" 2>/dev/null
+
+if [ -f "$OUTPUT_FILE" ]; then
+    echo "Last frame: $OUTPUT_FILE"
+else
+    echo "Failed to extract last frame" >&2
+    exit 1
+fi
+""",
+        applicableExtensions: ["mov", "mp4", "avi", "mkv", "mxf", "m4v", "webm"],
+        outputSuffix: "_last.png",
         outputType: .image,
         timeoutSeconds: 60
     )

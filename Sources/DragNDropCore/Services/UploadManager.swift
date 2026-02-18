@@ -175,9 +175,6 @@ public actor UploadManager {
             await skillExecutor.setBundledToolsPath(toolsPath)
         }
 
-        let jobId = job.id
-        let totalSkills = applicableSkills.count
-
         // Execute skills in parallel
         let companionFiles = await skillExecutor.executeSkills(
             applicableSkills,

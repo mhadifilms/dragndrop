@@ -197,8 +197,6 @@ final class IntegrationTests: XCTestCase {
 
     func testSettingsCodable() throws {
         var settings = AppSettings()
-        settings.awsSSOStartURL = "https://start.awsapps.com/start"
-        settings.awsAccountId = "123456789012"
         settings.defaultUploadSettings.maxConcurrentUploads = 8
         settings.defaultUploadSettings.enableBandwidthThrottling = true
         settings.defaultUploadSettings.maxUploadSpeedMBps = 25.0
@@ -211,8 +209,6 @@ final class IntegrationTests: XCTestCase {
         let decoder = JSONDecoder()
         let decoded = try decoder.decode(AppSettings.self, from: data)
 
-        XCTAssertEqual(decoded.awsSSOStartURL, settings.awsSSOStartURL)
-        XCTAssertEqual(decoded.awsAccountId, settings.awsAccountId)
         XCTAssertEqual(decoded.defaultUploadSettings.maxConcurrentUploads, 8)
         XCTAssertTrue(decoded.defaultUploadSettings.enableBandwidthThrottling)
         XCTAssertEqual(decoded.defaultUploadSettings.maxUploadSpeedMBps, 25.0)

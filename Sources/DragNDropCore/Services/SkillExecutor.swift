@@ -57,7 +57,9 @@ public actor SkillExecutor {
             }
 
             for await result in group {
-                progressCallback?(skills.first { $0.id == result.skillId }!, result.success ? "completed" : "failed")
+                if let skill = skills.first(where: { $0.id == result.skillId }) {
+                    progressCallback?(skill, result.success ? "completed" : "failed")
+                }
 
                 if result.success, let outputFile = result.outputFile {
                     // Move file to a stable location before returning
@@ -98,6 +100,7 @@ public actor SkillExecutor {
         outputDir: URL
     ) async -> SkillExecutionResult {
         let startTime = Date()
+        var process: Process?
 
         do {
             // Write script to temp file
@@ -126,21 +129,22 @@ public actor SkillExecutor {
             }
 
             // Create and configure process
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/bin/bash")
-            process.arguments = [scriptPath.path]
-            process.environment = environment
-            process.currentDirectoryURL = inputFile.deletingLastPathComponent()
+            let proc = Process()
+            process = proc
+            proc.executableURL = URL(fileURLWithPath: "/bin/bash")
+            proc.arguments = [scriptPath.path]
+            proc.environment = environment
+            proc.currentDirectoryURL = inputFile.deletingLastPathComponent()
 
             let outputPipe = Pipe()
             let errorPipe = Pipe()
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
+            proc.standardOutput = outputPipe
+            proc.standardError = errorPipe
 
             // Run with timeout
             let result = try await withTimeout(seconds: skill.timeoutSeconds) {
-                try process.run()
-                process.waitUntilExit()
+                try proc.run()
+                proc.waitUntilExit()
 
                 let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
                 let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
@@ -148,7 +152,7 @@ public actor SkillExecutor {
                 let stdout = String(data: outputData, encoding: .utf8) ?? ""
                 let stderr = String(data: errorData, encoding: .utf8) ?? ""
 
-                return (process.terminationStatus, stdout, stderr)
+                return (proc.terminationStatus, stdout, stderr)
             }
 
             let duration = Date().timeIntervalSince(startTime)
@@ -183,6 +187,7 @@ public actor SkillExecutor {
             }
 
         } catch is TimeoutError {
+            process?.terminate()
             return SkillExecutionResult(
                 skillId: skill.id,
                 skillName: skill.name,

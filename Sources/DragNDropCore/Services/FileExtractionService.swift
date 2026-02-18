@@ -62,7 +62,7 @@ public actor FileExtractionService {
         }
 
         var finalPath = destPath
-        var extractedValues = extraction.values
+        let extractedValues = extraction.values
 
         // Ensure path ends with /
         if !finalPath.hasSuffix("/") {
